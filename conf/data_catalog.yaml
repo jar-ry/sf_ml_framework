@@ -1,0 +1,103 @@
+# Data Catalog Configuration
+# Maps logical data names to their physical locations and metadata
+
+datasets:
+  customer_transactions:
+    description: "Customer transaction data with behavior metrics"
+    version: "v1"
+    local:
+      directory: "data/01_generate_data"
+      filename_pattern: "customer_transactions_{name}.csv"
+      metadata_pattern: "metadata_{name}_{version}.json"
+    snowflake:
+      feature_view: "customer_transactions"
+      
+  customer_demographics:
+    description: "Customer demographic and account information"
+    version: "v2"
+    local:
+      directory: "data/01_generate_data"
+      filename_pattern: "customer_demographics_{name}.csv"
+      metadata_pattern: "metadata_{name}_{version}.json"
+    snowflake:
+      feature_view: "customer_demographics"
+    
+  preprocessed_customer_features:
+    description: "Preprocessed customer data with feature flags and quality improvements"
+    version: "v1"
+    local:
+      directory: "data/02_preprocess_data"
+      filename_pattern: "preprocessed_data_{name}.csv" 
+      metadata_pattern: "preprocessing_metadata_{name}_{version}.json"
+    snowflake:
+      feature_view: "preprocessed_customer_features"
+    
+  engineered_customer_features:
+    description: "Customer features with engineered variables for model training"
+    version: "v1"
+    local:
+      directory: "data/03_feature_engineering"
+      filename_pattern: "engineered_features_{name}.csv"
+      metadata_pattern: "feature_engineering_metadata_{name}_{version}.json"
+    snowflake:
+      feature_view: "engineered_customer_features"
+    
+  train_customer_features:
+    description: "Training dataset for model development"
+    version: "v1"
+    local:
+      directory: "data/04_train_test_split"
+      filename_pattern: "train_data_{name}.csv"
+      metadata_pattern: "split_metadata_{version}.json"
+    snowflake:
+      feature_view: "train_customer_features"
+    
+  test_customer_features:
+    description: "Test dataset for model evaluation"
+    version: "v1"
+    local:
+      directory: "data/04_train_test_split"
+      filename_pattern: "test_data_{name}.csv"
+      metadata_pattern: "split_metadata_{version}.json"
+    snowflake:
+      feature_view: "test_customer_features"
+
+models:
+  customer_churn_xgboost:
+    description: "XGBoost model for customer churn prediction"
+    version: "v1"
+    local:
+      directory: "data/05_train_model"
+      filename_pattern: "model_{name}_{version}.pkl"
+      metadata_pattern: "model_metadata_{name}_{version}.json"
+      feature_importance_pattern: "feature_importance_{name}_{version}.csv"
+    snowflake:
+      model_name: "customer_churn_xgboost"
+    algorithm: "XGBoost"
+
+evaluations:
+  model_evaluation:
+    description: "Model evaluation results and metrics"
+    version: "v1"
+    local:
+      directory: "data"
+      filename_pattern: "evaluation_results_{name}_{version}.json"
+      predictions_pattern: "predictions_{model_name}_{model_version}.csv"
+      plots:
+        confusion_matrix: "confusion_matrix_{model_name}_{model_version}.png"
+        roc_curve: "roc_curve_{model_name}_{model_version}.png"
+        precision_recall: "precision_recall_{model_name}_{model_version}.png"
+        prediction_distribution: "prediction_distribution_{model_name}_{model_version}.png"
+        shap_summary: "shap_summary_{model_name}_{model_version}.png"
+    snowflake:
+      metrics_table: "model_evaluation_metrics"
+
+# Global settings
+settings:
+  default_version: "v1"
+  local_base_path: "data"
+  file_formats:
+    data: "csv"
+    metadata: "json"
+    models: "pkl"
+    plots: "png" 

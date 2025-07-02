@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: job-generate-data
+spec:
+  containers:
+    - name: generate-data-container
+      image: <SNOWFLAKE_REGISTRY_URL>/mlops_framework:latest
+      args: 
+        - "--node"
+        - "generate_sample_data"
+        - "--inputs"
+        - '{"num_customers": 100000, "random_seed": 42}'
+        - "--outputs"
+        - '{"table_name": "RAW_CUSTOMER_DATA", "feature_view_name": "raw_customer_features"}'
+      resources:
+        requests:
+          memory: "1Gi"
+          cpu: "0.5"
+        limits:
+          memory: "2Gi"
+          cpu: "1.0"
+      env:
+        - name: SNOWFLAKE_USER
+          valueFrom:
+            secretKeyRef:
+              secretName: snowflake-credentials
+              key: user
+        - name: SNOWFLAKE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              secretName: snowflake-credentials
+              key: password
+        - name: SNOWFLAKE_ACCOUNT
+          value: "<SNOWFLAKE_ACCOUNT>"
+        - name: SNOWFLAKE_WAREHOUSE
+          value: "COMPUTE_WH"
+        - name: SNOWFLAKE_DATABASE
+          value: "<SNOWFLAKE_DATABASE>"
+        - name: SNOWFLAKE_SCHEMA
+          value: "<SNOWFLAKE_SCHEMA>"
+        - name: SNOWFLAKE_ROLE
+          value: "MLOPS_ROLE"
+  min_instances: 1
+  max_instances: 1 

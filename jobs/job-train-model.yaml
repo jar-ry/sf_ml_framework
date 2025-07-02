@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: job-train-model
+spec:
+  containers:
+    - name: train-model-container
+      image: <SNOWFLAKE_REGISTRY_URL>/mlops_framework:latest
+      args: 
+        - "--node"
+        - "train_model"
+        - "--inputs"
+        - '{"train_feature_view": "train_customer_features", "version": "v1", "target_column": "churned", "model_params": {"max_depth": 6, "learning_rate": 0.1, "n_estimators": 100, "random_state": 42}}'
+        - "--outputs"
+        - '{"model_name": "customer_churn_xgboost", "model_version": "v1"}'
+      resources:
+        requests:
+          memory: "8Gi"
+          cpu: "4.0"
+        limits:
+          memory: "16Gi"
+          cpu: "8.0"
+      env:
+        - name: SNOWFLAKE_USER
+          valueFrom:
+            secretKeyRef:
+              secretName: snowflake-credentials
+              key: user
+        - name: SNOWFLAKE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              secretName: snowflake-credentials
+              key: password
+        - name: SNOWFLAKE_ACCOUNT
+          value: "<SNOWFLAKE_ACCOUNT>"
+        - name: SNOWFLAKE_WAREHOUSE
+          value: "COMPUTE_WH"
+        - name: SNOWFLAKE_DATABASE
+          value: "<SNOWFLAKE_DATABASE>"
+        - name: SNOWFLAKE_SCHEMA
+          value: "<SNOWFLAKE_SCHEMA>"
+        - name: SNOWFLAKE_ROLE
+          value: "MLOPS_ROLE"
+  min_instances: 1
+  max_instances: 1 

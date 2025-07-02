@@ -1,0 +1,154 @@
+name: MLOps Framework CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+  SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+  SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+  SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+  SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+  SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+  SNOWFLAKE_ROLE: MLOPS_ROLE
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+    
+    - name: Run unit tests
+      run: |
+        pytest tests/ -v --cov=src --cov-report=xml
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install snowflake-connector-python
+    
+    - name: Determine environment
+      id: env
+      run: |
+        if [[ $GITHUB_REF == 'refs/heads/main' ]]; then
+          echo "environment=prod" >> $GITHUB_OUTPUT
+          echo "database=${{ secrets.SNOWFLAKE_DATABASE_PROD }}" >> $GITHUB_OUTPUT
+          echo "schema=${{ secrets.SNOWFLAKE_SCHEMA_PROD }}" >> $GITHUB_OUTPUT
+        else
+          echo "environment=test" >> $GITHUB_OUTPUT
+          echo "database=${{ secrets.SNOWFLAKE_DATABASE_TEST }}" >> $GITHUB_OUTPUT
+          echo "schema=${{ secrets.SNOWFLAKE_SCHEMA_TEST }}" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Build Docker image
+      run: |
+        docker build -t mlops_framework:${{ github.sha }} .
+        docker tag mlops_framework:${{ github.sha }} mlops_framework:latest
+    
+    - name: Run integration tests
+      env:
+        SNOWFLAKE_DATABASE: ${{ steps.env.outputs.database }}
+        SNOWFLAKE_SCHEMA: ${{ steps.env.outputs.schema }}
+      run: |
+        # Run integration tests against Snowflake test environment
+        python -m pytest tests/integration/ -v
+    
+    - name: Login to Snowflake Docker Registry
+      run: |
+        echo "Logging into Snowflake Docker Registry..."
+        # Note: This would use actual Snowflake registry credentials
+        # docker login <SNOWFLAKE_REGISTRY_URL> -u $SNOWFLAKE_USER -p $SNOWFLAKE_PASSWORD
+    
+    - name: Push Docker image to Snowflake Registry
+      run: |
+        echo "Pushing to Snowflake Registry..."
+        # Note: This would push to actual Snowflake registry
+        # docker tag mlops_framework:${{ github.sha }} <SNOWFLAKE_REGISTRY_URL>/mlops_framework:${{ github.sha }}
+        # docker tag mlops_framework:${{ github.sha }} <SNOWFLAKE_REGISTRY_URL>/mlops_framework:latest
+        # docker push <SNOWFLAKE_REGISTRY_URL>/mlops_framework:${{ github.sha }}
+        # docker push <SNOWFLAKE_REGISTRY_URL>/mlops_framework:latest
+    
+    - name: Update Snowflake Tasks
+      env:
+        SNOWFLAKE_DATABASE: ${{ steps.env.outputs.database }}
+        SNOWFLAKE_SCHEMA: ${{ steps.env.outputs.schema }}
+      run: |
+        echo "Updating Snowflake Tasks for ${{ steps.env.outputs.environment }} environment..."
+        # Update task definitions with new image
+        python scripts/update_tasks.py \
+          --environment ${{ steps.env.outputs.environment }} \
+          --image-tag ${{ github.sha }} \
+          --database ${{ steps.env.outputs.database }} \
+          --schema ${{ steps.env.outputs.schema }}
+    
+    - name: Run end-to-end test
+      if: steps.env.outputs.environment == 'test'
+      env:
+        SNOWFLAKE_DATABASE: ${{ steps.env.outputs.database }}
+        SNOWFLAKE_SCHEMA: ${{ steps.env.outputs.schema }}
+      run: |
+        echo "Running end-to-end pipeline test..."
+        python scripts/run_e2e_test.py
+    
+    - name: Notify deployment status
+      if: always()
+      run: |
+        if [[ ${{ job.status }} == 'success' ]]; then
+          echo "✅ Deployment to ${{ steps.env.outputs.environment }} successful"
+        else
+          echo "❌ Deployment to ${{ steps.env.outputs.environment }} failed"
+        fi
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Run security scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif' 
