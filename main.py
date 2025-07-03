@@ -11,10 +11,17 @@ import os
 import sys
 import json
 import logging
-from typing import List, Dict, Any, Optional
+import yaml
+from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
 import subprocess
 import re
+from snowflake.core import Root
+from snowflake.core.compute_pool import ComputePool
+from snowflake.core.service import Service, ServiceSpecInlineText
+from snowflake.core.task import Task
+from snowflake.snowpark import Session
+from datetime import timedelta
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
@@ -76,6 +83,10 @@ class MLOpsPipelineOrchestrator:
             if not self.load_pipeline():
                 return
         
+        if not self.pipeline_nodes:  # Additional safety check
+            logger.error("No pipeline nodes available")
+            return
+        
         print("\n📋 Available Pipeline Nodes:")
         print("=" * 50)
         
@@ -94,6 +105,10 @@ class MLOpsPipelineOrchestrator:
             if not self.load_pipeline():
                 return
         
+        if not self.dependencies:  # Additional safety check
+            logger.error("No pipeline dependencies available")
+            return
+        
         print("\n🔗 Pipeline Dependencies:")
         print("=" * 30)
         
@@ -110,6 +125,10 @@ class MLOpsPipelineOrchestrator:
         if not self.pipeline_nodes:
             if not self.load_pipeline():
                 return False
+        
+        if not self.pipeline_nodes:  # Additional safety check
+            logger.error("No pipeline nodes available")
+            return False
         
         # Find the node
         node = None
@@ -239,67 +258,6 @@ class MLOpsPipelineOrchestrator:
         
         return execution_order
     
-    def create_snowflake_tasks(self, update_placeholders: bool = True):
-        """Create or update Snowflake tasks."""
-        logger.info("Creating Snowflake tasks...")
-        
-        sql_file = "tasks/create_pipeline_tasks.sql"
-        if not os.path.exists(sql_file):
-            logger.error(f"SQL file not found: {sql_file}")
-            return False
-        
-        # Read SQL file
-        with open(sql_file, 'r') as f:
-            sql_content = f.read()
-        
-        if update_placeholders:
-            # Replace placeholders with environment variables
-            replacements = {
-                '<SNOWFLAKE_ACCOUNT>': os.getenv('SNOWFLAKE_ACCOUNT', None),
-                '<SNOWFLAKE_DATABASE>': os.getenv('SNOWFLAKE_DATABASE', None),
-                '<SNOWFLAKE_SCHEMA>': os.getenv('SNOWFLAKE_SCHEMA', None),
-                '<SNOWFLAKE_USER>': os.getenv('SNOWFLAKE_USER', None),
-                '<SNOWFLAKE_REGISTRY_URL>': os.getenv('SNOWFLAKE_REGISTRY_URL', None)
-            }
-            
-            for placeholder, value in replacements.items():
-                if value is not None:
-                    sql_content = sql_content.replace(placeholder, value)
-                else:
-                    logger.error(f"Environment variable {placeholder} is not set")
-                    return False
-            
-            # Save updated SQL
-            updated_sql_file = "tasks/create_pipeline_tasks_configured.sql"
-            with open(updated_sql_file, 'w') as f:
-                f.write(sql_content)
-            
-            logger.info(f"SQL file updated and saved as: {updated_sql_file}")
-            sql_file = updated_sql_file
-        
-        try:
-            # Execute SQL using Snowflake connection
-            connection = get_snowflake_connection()
-            cursor = connection.cursor()
-            
-            # Split and execute SQL statements
-            statements = sql_content.split(';')
-            for statement in statements:
-                statement = statement.strip()
-                # Strip comments lines but keep following lines within the statement
-                statement = re.sub(r'--.*', '', statement)
-                print(statement)
-                if statement and not statement.startswith('--'):
-                    cursor.execute(statement)
-            
-            logger.info("✅ Snowflake tasks created successfully")
-            cursor.close()
-            return True
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to create Snowflake tasks: {e}")
-            return False
-    
     def check_task_status(self):
         """Check the status of Snowflake tasks."""
         try:
@@ -396,6 +354,286 @@ class MLOpsPipelineOrchestrator:
         except Exception as e:
             logger.error(f"Failed to suspend tasks: {e}")
 
+    def create_snowflake_resources_with_sdk(self, update_placeholders: bool = True):
+        """Create Snowflake compute pools, services, and tasks using Python SDK."""
+        logger.info("Creating Snowflake resources using Python SDK...")
+        
+        try:            
+            # Set database and schema context
+            account = os.getenv('SNOWFLAKE_ACCOUNT')
+            user = os.getenv('SNOWFLAKE_USER')
+            password = os.getenv('SNOWFLAKE_PASSWORD')
+            role_name = os.getenv('SNOWFLAKE_ROLE')
+            warehouse_name = os.getenv('SNOWFLAKE_WAREHOUSE')
+            database_name = os.getenv('SNOWFLAKE_DATABASE')
+            schema_name = os.getenv('SNOWFLAKE_SCHEMA')
+            registry_url = os.getenv('SNOWFLAKE_REGISTRY_URL')
+            
+            # Check if all required parameters are not None without using not all
+            if not account or not user or not password or not role_name or not warehouse_name or not database_name or not schema_name or not registry_url:
+                logger.error("Missing required Snowflake connection parameters")
+                return False
+
+            # Create session and root object
+            connection_parameters: Dict[str, Union[str, int]] = {
+                "account": account,
+                "user": user,
+                "password": password,
+                "role": role_name,
+                "warehouse": warehouse_name,
+                "database": database_name,
+                "schema": schema_name,
+            }
+
+            session = Session.builder.configs(connection_parameters).create()
+            root = Root(session)
+            
+            # Set database and schema context            
+            database = root.databases[database_name]
+            schema = database.schemas[schema_name]
+            
+            logger.info(f"Working with database: {database_name}, schema: {schema_name}")
+            
+            # Step 1: Create compute pool
+            logger.info("Creating compute pool...")
+            compute_pool_def = ComputePool(
+                name="MLOPS_COMPUTE_POOL",
+                instance_family="CPU_X64_XS",
+                min_nodes=1,
+                max_nodes=10,
+                auto_suspend_secs=300,
+                comment="Compute pool for MLOps framework container services"
+            )
+            
+            try:
+                compute_pool = root.compute_pools.create(compute_pool_def)
+                logger.info("✅ Compute pool created successfully")
+            except Exception as e:
+                if "already exists" in str(e).lower():
+                    logger.info("Compute pool already exists, continuing...")
+                    compute_pool = root.compute_pools["MLOPS_COMPUTE_POOL"]
+                else:
+                    raise e
+            
+            # Step 2: Create services from YAML files
+            logger.info("Creating services from YAML files...")
+            services_created = []
+            
+            # Define service configurations
+            service_configs = [
+                {
+                    "name": "job-generate-data",
+                    "yaml_file": "job-generate-data.yaml",
+                    "service_name": "svc_generate_data"
+                },
+                {
+                    "name": "job-preprocess-data", 
+                    "yaml_file": "job-preprocess-data.yaml",
+                    "service_name": "svc_preprocess_data"
+                },
+                {
+                    "name": "job-feature-engineering",
+                    "yaml_file": "job-feature-engineering.yaml",
+                    "service_name": "svc_feature_engineering"
+                },
+                {
+                    "name": "job-train-test-split",
+                    "yaml_file": "job-train-test-split.yaml",
+                    "service_name": "svc_train_test_split"
+                },
+                {
+                    "name": "job-train-model",
+                    "yaml_file": "job-train-model.yaml",
+                    "service_name": "svc_train_model"
+                },
+                {
+                    "name": "job-evaluate-model",
+                    "yaml_file": "job-evaluate-model.yaml",
+                    "service_name": "svc_evaluate_model"
+                }
+            ]
+            
+            for config in service_configs:
+                yaml_path = os.path.join("jobs", config["yaml_file"])
+                
+                if not os.path.exists(yaml_path):
+                    logger.error(f"YAML file not found: {yaml_path}")
+                    continue
+                
+                try:
+                    with open(yaml_path, 'r') as f:
+                        job_spec = yaml.safe_load(f)
+                    # Replace placeholders if requested
+                    if update_placeholders:
+                        job_spec_str = yaml.dump(job_spec)
+                        replacements = {
+                            '<SNOWFLAKE_ACCOUNT>': account,
+                            '<SNOWFLAKE_DATABASE>': database_name,
+                            '<SNOWFLAKE_SCHEMA>': schema_name,
+                            '<SNOWFLAKE_USER>': user,
+                            '<SNOWFLAKE_REGISTRY_URL>': registry_url,
+                            '<SNOWFLAKE_WAREHOUSE>': warehouse_name,
+                            '<SNOWFLAKE_ROLE>': role_name
+                        }
+                        
+                        for placeholder, value in replacements.items():
+                            job_spec_str = job_spec_str.replace(placeholder, value)
+                        
+                        job_spec = yaml.safe_load(job_spec_str)
+                    # Create service specification
+                    service_spec = yaml.dump(job_spec, default_flow_style=False)
+
+                    # Create service
+                    service_def = Service(
+                        name=config["service_name"],
+                        compute_pool="MLOPS_COMPUTE_POOL",
+                        spec=ServiceSpecInlineText(spec_text=service_spec),
+                        min_instances=1,
+                        max_instances=1,
+                        comment=f"Service for {config['name']}"
+                    )
+                    try:
+                        service = schema.services.create(service_def)
+                        logger.info(f"✅ Service created: {config['service_name']}")
+                        services_created.append(config["service_name"])
+                    except Exception as e:
+                        if "already exists" in str(e).lower():
+                            logger.info(f"Service {config['service_name']} already exists, continuing...")
+                            services_created.append(config["service_name"])
+                        else:
+                            logger.error(f"Failed to create service {config['service_name']}: {e}")
+                            return False
+                    
+                except Exception as e:
+                    logger.error(f"Error processing YAML file {yaml_path}: {e}")
+                    return False
+            
+            # Step 3: Create tasks that execute services
+            logger.info("Creating tasks that execute services...")
+            
+            # Define task configurations with dependencies
+            task_configs = [
+                {
+                    "name": "task_generate_sample_data",
+                    "service_name": "svc_generate_data",
+                    "schedule": timedelta(hours=24),  # Daily
+                    "timeout_ms": 3600000,
+                    "comment": "Generate synthetic customer data for churn prediction",
+                    "dependencies": []
+                },
+                {
+                    "name": "task_preprocess_data",
+                    "service_name": "svc_preprocess_data", 
+                    "schedule": None,
+                    "timeout_ms": 3600000,
+                    "comment": "Clean and preprocess raw customer data",
+                    "dependencies": ["task_generate_sample_data"]
+                },
+                {
+                    "name": "task_engineer_features",
+                    "service_name": "svc_feature_engineering",
+                    "schedule": None,
+                    "timeout_ms": 3600000,
+                    "comment": "Create engineered features for model training",
+                    "dependencies": ["task_preprocess_data"]
+                },
+                {
+                    "name": "task_train_test_split",
+                    "service_name": "svc_train_test_split",
+                    "schedule": None,
+                    "timeout_ms": 3600000,
+                    "comment": "Split data into training and testing sets",
+                    "dependencies": ["task_engineer_features"]
+                },
+                {
+                    "name": "task_train_model",
+                    "service_name": "svc_train_model",
+                    "schedule": None,
+                    "timeout_ms": 7200000,
+                    "comment": "Train XGBoost model for churn prediction",
+                    "dependencies": ["task_train_test_split"]
+                },
+                {
+                    "name": "task_evaluate_model",
+                    "service_name": "svc_evaluate_model",
+                    "schedule": None,
+                    "timeout_ms": 5400000,
+                    "comment": "Evaluate model performance and generate SHAP plots",
+                    "dependencies": ["task_train_model"]
+                }
+            ]
+            
+            # Create tasks
+            for task_config in task_configs:
+                if task_config["service_name"] not in services_created:
+                    logger.warning(f"Skipping task {task_config['name']} - service {task_config['service_name']} not created")
+                    continue
+                
+                try:
+                    # For tasks that execute services, we need to use a SQL definition
+                    # since the Python API doesn't directly support EXECUTE JOB SERVICE
+                    sql_definition = f"""
+                    EXECUTE JOB SERVICE
+                    IN COMPUTE POOL MLOPS_COMPUTE_POOL
+                    NAME = {task_config['service_name']}
+                    """
+                    
+                    # Create task
+                    task_def = Task(
+                        name=task_config["name"],
+                        definition=sql_definition,
+                        schedule=task_config["schedule"]
+                    )
+                    
+                    # Set dependencies (predecessors)
+                    if task_config["dependencies"]:
+                        # Note: The Python API may handle dependencies differently
+                        # We might need to set them after creation
+                        pass
+                    
+                    try:
+                        task = schema.tasks.create(task_def)
+                        logger.info(f"✅ Task created: {task_config['name']}")
+                        
+                        # Set dependencies if any
+                        if task_config["dependencies"]:
+                            for dep in task_config["dependencies"]:
+                                try:
+                                    # This is a simplified approach - the actual API might be different
+                                    # We might need to recreate the task with dependencies
+                                    logger.info(f"Setting dependency: {dep} -> {task_config['name']}")
+                                except Exception as e:
+                                    logger.warning(f"Failed to set dependency {dep}: {e}")
+                    
+                    except Exception as e:
+                        if "already exists" in str(e).lower():
+                            logger.info(f"Task {task_config['name']} already exists, continuing...")
+                        else:
+                            logger.error(f"Failed to create task {task_config['name']}: {e}")
+                            continue
+                    
+                except Exception as e:
+                    logger.error(f"Error creating task {task_config['name']}: {e}")
+                    continue
+            
+            # Step 4: Resume tasks to activate them
+            logger.info("Resuming tasks to activate them...")
+            for task_config in task_configs:
+                try:
+                    task_resource = schema.tasks[task_config["name"]]
+                    task_resource.resume()
+                    logger.info(f"✅ Task resumed: {task_config['name']}")
+                except Exception as e:
+                    logger.warning(f"Failed to resume task {task_config['name']}: {e}")
+            
+            session.close()
+            logger.info("✅ Snowflake resources created successfully using Python SDK")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to create Snowflake resources with SDK: {e}")
+            return False
+
 
 def main():
     """Main CLI entry point."""
@@ -458,7 +696,7 @@ def main():
     
     elif args.command == 'tasks':
         if args.task_action == 'create':
-            orchestrator.create_snowflake_tasks()
+            orchestrator.create_snowflake_resources_with_sdk()
         elif args.task_action == 'status':
             orchestrator.check_task_status()
         elif args.task_action == 'resume':

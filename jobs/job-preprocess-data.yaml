@@ -1,1 +1,27 @@
- 
+spec:
+  containers:
+    - name: preprocess-data-container
+      image: <SNOWFLAKE_REGISTRY_URL>/mlops_framework:latest
+      args: 
+        - "--node"
+        - "preprocess_data"
+        - "--inputs"
+        - '{"source_feature_view": "raw_customer_features", "version": "v1"}'
+        - "--outputs"
+        - '{"feature_view_name": "preprocessed_customer_features", "version": "v1"}'
+      resources:
+        requests:
+          memory: "2Gi"
+          cpu: "1"
+        limits:
+          memory: "4Gi"
+          cpu: "2"
+      env:
+        - SNOWFLAKE_USER: <SNOWFLAKE_USER>
+        - SNOWFLAKE_ACCOUNT: <SNOWFLAKE_ACCOUNT>
+        - SNOWFLAKE_WAREHOUSE: <SNOWFLAKE_WAREHOUSE>
+        - SNOWFLAKE_DATABASE: <SNOWFLAKE_DATABASE>
+        - SNOWFLAKE_SCHEMA: <SNOWFLAKE_SCHEMA>
+        - SNOWFLAKE_ROLE: <SNOWFLAKE_ROLE>
+  min_instances: 1
+  max_instances: 1 

@@ -1,7 +1,6 @@
 data/
 .c*
 .DS_Store
-create_pipeline_tasks_configured.sql
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
