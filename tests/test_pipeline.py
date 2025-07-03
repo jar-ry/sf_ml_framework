@@ -62,7 +62,7 @@ def test_pipeline_validation():
     logger.info("Testing pipeline validation...")
     
     try:
-        from pipeline import create_pipeline, validate_pipeline, get_execution_order
+        from src.utils.pipeline import create_pipeline, validate_pipeline, get_execution_order
         
         # Test pipeline creation
         pipeline = create_pipeline()
@@ -123,12 +123,12 @@ def test_complete_pipeline():
     
     try:
         # Import node functions
-        from nodes.node_01_generate_data import generate_sample_data
-        from nodes.node_02_preprocess_data import preprocess_data
-        from nodes.node_03_feature_engineering import engineer_features
-        from nodes.node_04_train_test_split import create_train_test_split
-        from nodes.node_05_train_model import train_model
-        from nodes.node_06_evaluate_model import evaluate_model
+        from src.nodes.node_01_generate_data import generate_sample_data
+        from src.nodes.node_02_preprocess_data import preprocess_data
+        from src.nodes.node_03_feature_engineering import engineer_features
+        from src.nodes.node_04_train_test_split import create_train_test_split
+        from src.nodes.node_05_train_model import train_model
+        from src.nodes.node_06_evaluate_model import evaluate_model
         
         success_count = 0
         total_nodes = 6

@@ -26,7 +26,7 @@ COPY config.env .
 ENV PATH /opt/conda/envs/mlops-framework/bin:$PATH
 
 # Activate the environment and set entrypoint
-ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "mlops-framework", "python", "/app/src/run_node.py"]
+ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "mlops-framework", "python", "/app/src/utils/run_node.py"]
 
 # Default command (can be overridden)
 CMD ["--help"] 

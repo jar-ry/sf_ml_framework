@@ -16,7 +16,7 @@ from datetime import datetime
 import xgboost as xgb
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 from sklearn.model_selection import cross_val_score, StratifiedKFold
-from src.data_catalog import get_catalog
+from src.utils.data_catalog import get_catalog
 
 logger = logging.getLogger(__name__)
 

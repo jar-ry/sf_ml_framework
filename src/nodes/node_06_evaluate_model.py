@@ -20,7 +20,7 @@ from sklearn.metrics import (
     confusion_matrix, classification_report, roc_curve, precision_recall_curve
 )
 import shap
-from src.data_catalog import get_catalog
+from src.utils.data_catalog import get_catalog
 
 logger = logging.getLogger(__name__)
 

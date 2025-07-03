@@ -189,7 +189,7 @@ Key variables to configure:
 
 ### Resource Configuration
 
-Node resources are defined in `src/pipeline.py`:
+Node resources are defined in `src/utils/pipeline.py`:
 - **SMALL**: 1-2 CPU, 1-2Gi memory
 - **MEDIUM**: 2-4 CPU, 4Gi memory  
 - **LARGE**: 4+ CPU, 8Gi memory

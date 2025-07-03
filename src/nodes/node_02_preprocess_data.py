@@ -12,7 +12,7 @@ import pandas as pd
 import numpy as np
 from typing import Dict, Any
 from datetime import datetime
-from src.data_catalog import get_catalog
+from src.utils.data_catalog import get_catalog
 from snowflake.ml.feature_store import FeatureView, Entity
 
 logger = logging.getLogger(__name__)

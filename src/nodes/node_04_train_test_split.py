@@ -12,7 +12,7 @@ import numpy as np
 from typing import Dict, Any, Tuple
 from datetime import datetime
 from sklearn.model_selection import train_test_split
-from src.data_catalog import get_catalog
+from src.utils.data_catalog import get_catalog
 
 logger = logging.getLogger(__name__)
 

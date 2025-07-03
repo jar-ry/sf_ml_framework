@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 
 # Import node functions with error handling
 try:
-    from nodes.node_01_generate_data import generate_sample_data
-    from nodes.node_02_preprocess_data import preprocess_data
-    from nodes.node_03_feature_engineering import engineer_features
-    from nodes.node_04_train_test_split import create_train_test_split
-    from nodes.node_05_train_model import train_model
-    from nodes.node_06_evaluate_model import evaluate_model
+    from src.nodes.node_01_generate_data import generate_sample_data
+    from src.nodes.node_02_preprocess_data import preprocess_data
+    from src.nodes.node_03_feature_engineering import engineer_features
+    from src.nodes.node_04_train_test_split import create_train_test_split
+    from src.nodes.node_05_train_model import train_model
+    from src.nodes.node_06_evaluate_model import evaluate_model
     NODE_IMPORTS_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"Some node modules not available: {e}")

@@ -22,7 +22,7 @@ def test_node_execution_modes():
     print("\n1️⃣  Testing Generate Sample Data Node")
     
     try:
-        from nodes.node_01_generate_data import generate_sample_data
+        from src.nodes.node_01_generate_data import generate_sample_data
         
         test_inputs = {
             "customer_count": 20,  # Small dataset for testing
@@ -81,7 +81,7 @@ def test_node_execution_modes():
     print("\n2️⃣  Testing Preprocess Data Node")
     
     try:
-        from nodes.node_02_preprocess_data import preprocess_data
+        from src.nodes.node_02_preprocess_data import preprocess_data
         
         test_inputs = {
             "source_feature_view": "test_raw_customer_data",

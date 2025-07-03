@@ -12,7 +12,7 @@ import numpy as np
 from typing import Dict, Any
 from datetime import datetime
 from sklearn.preprocessing import StandardScaler, LabelEncoder
-from src.data_catalog import get_catalog
+from src.utils.data_catalog import get_catalog
 
 logger = logging.getLogger(__name__)
 

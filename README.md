@@ -29,9 +29,11 @@ sf_ml_framework/
 │   │   ├── node_04_train_test_split.py   # Train/test data splitting
 │   │   ├── node_05_train_model.py        # XGBoost model training
 │   │   └── node_06_evaluate_model.py     # Model evaluation & SHAP
-│   ├── pipeline.py               # Central pipeline manifest
-│   ├── run_node.py              # Container entrypoint
-│   └── snowflake_utils.py       # Snowflake connection utilities
+│   └── utils/                   # Shared utilities
+│       ├── data_catalog.py      # Data catalog system
+│       ├── pipeline.py          # Central pipeline manifest
+│       ├── run_node.py          # Container entrypoint
+│       └── snowflake_utils.py   # Snowflake connection utilities
 ├── data/
 │   └── sample_customer_data.py  # Sample data generation
 ├── jobs/                        # Snowflake ML Job YAML specifications
@@ -223,7 +225,7 @@ python node_02_preprocess_data.py
 
 ```bash
 # Test the node runner
-python src/run_node.py --node generate_sample_data --inputs '{"num_customers": 50}'
+python src/utils/run_node.py --node generate_sample_data --inputs '{"num_customers": 50}'
 ```
 
 ### Sample Data Generation
@@ -384,7 +386,7 @@ ALTER COMPUTE POOL MLOPS_COMPUTE_POOL SET MAX_NODES = 20;
 ### Custom Nodes
 
 1. Create node function in `src/nodes/`
-2. Register in `src/pipeline.py`
+2. Register in `src/utils/pipeline.py`
 3. Create job YAML in `jobs/`
 4. Add task to `tasks/create_pipeline_tasks.sql`
 

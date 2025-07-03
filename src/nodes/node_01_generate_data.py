@@ -1,16 +1,19 @@
 """
-Node 01: Generate Sample Data
+Node 01: Generate Data
 
 This node generates synthetic customer data for the churn prediction pipeline.
-In local mode, saves to data/ folder. In deployment mode, saves to Snowflake Feature Store.
 """
 
 import logging
-import os
 import pandas as pd
+import numpy as np
+import json
+import os
+from datetime import datetime, timedelta
 from typing import Dict, Any
-from datetime import datetime
-from src.data_catalog import get_catalog
+from snowflake.ml.feature_store import FeatureStore
+
+from src.utils.data_catalog import get_catalog
 
 # Add parent directory to path for imports
 import sys
@@ -102,7 +105,6 @@ def generate_sample_data(feature_store, model_registry, inputs: Dict[str, Any], 
         ]].copy()
         
         # Add some additional demographic fields to make it more realistic
-        import numpy as np
         np.random.seed(random_seed)
         
         # Add region (categorical)
@@ -110,7 +112,6 @@ def generate_sample_data(feature_store, model_registry, inputs: Dict[str, Any], 
         demographics_df['region'] = np.random.choice(regions, size=len(demographics_df))
         
         # Add account creation date (simulate account age)
-        from datetime import datetime, timedelta
         base_date = datetime(2020, 1, 1)
         max_days = (datetime.now() - base_date).days
         random_days = np.random.randint(0, max_days, size=len(demographics_df))
@@ -158,7 +159,6 @@ def generate_sample_data(feature_store, model_registry, inputs: Dict[str, Any], 
                 'dataset_type': 'transactions'
             }
             
-            import json
             with open(transactions_metadata_file, 'w') as f:
                 json.dump(transactions_metadata, f, indent=2)
             

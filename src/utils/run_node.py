@@ -13,11 +13,11 @@ import os
 from typing import Dict, Any, Optional
 import traceback
 
-# Add src directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+# Add project root directory to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from pipeline import create_pipeline
-from snowflake_utils import get_feature_store, get_model_registry
+from src.utils.pipeline import create_pipeline
+from src.utils.snowflake_utils import get_feature_store, get_model_registry
 
 # Configure logging
 logging.basicConfig(

@@ -14,12 +14,12 @@ import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import subprocess
-
+import re
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from pipeline import create_pipeline, validate_pipeline, get_pipeline_dependencies
-from snowflake_utils import get_snowflake_connection, snowflake_manager
+from src.utils.pipeline import create_pipeline, validate_pipeline, get_pipeline_dependencies
+from src.utils.snowflake_utils import get_snowflake_connection, snowflake_manager
 
 # Configure logging
 logging.basicConfig(
@@ -255,15 +255,19 @@ class MLOpsPipelineOrchestrator:
         if update_placeholders:
             # Replace placeholders with environment variables
             replacements = {
-                '<SNOWFLAKE_ACCOUNT>': os.getenv('SNOWFLAKE_ACCOUNT', 'your-account'),
-                '<SNOWFLAKE_DATABASE>': os.getenv('SNOWFLAKE_DATABASE', 'MLOPS_DATABASE'),
-                '<SNOWFLAKE_SCHEMA>': os.getenv('SNOWFLAKE_SCHEMA', 'MLOPS_SCHEMA'),
-                '<SNOWFLAKE_USER>': os.getenv('SNOWFLAKE_USER', 'your-username'),
-                '<SNOWFLAKE_REGISTRY_URL>': os.getenv('SNOWFLAKE_REGISTRY_URL', 'your-registry-url')
+                '<SNOWFLAKE_ACCOUNT>': os.getenv('SNOWFLAKE_ACCOUNT', None),
+                '<SNOWFLAKE_DATABASE>': os.getenv('SNOWFLAKE_DATABASE', None),
+                '<SNOWFLAKE_SCHEMA>': os.getenv('SNOWFLAKE_SCHEMA', None),
+                '<SNOWFLAKE_USER>': os.getenv('SNOWFLAKE_USER', None),
+                '<SNOWFLAKE_REGISTRY_URL>': os.getenv('SNOWFLAKE_REGISTRY_URL', None)
             }
             
             for placeholder, value in replacements.items():
-                sql_content = sql_content.replace(placeholder, value)
+                if value is not None:
+                    sql_content = sql_content.replace(placeholder, value)
+                else:
+                    logger.error(f"Environment variable {placeholder} is not set")
+                    return False
             
             # Save updated SQL
             updated_sql_file = "tasks/create_pipeline_tasks_configured.sql"
@@ -282,6 +286,9 @@ class MLOpsPipelineOrchestrator:
             statements = sql_content.split(';')
             for statement in statements:
                 statement = statement.strip()
+                # Strip comments lines but keep following lines within the statement
+                statement = re.sub(r'--.*', '', statement)
+                print(statement)
                 if statement and not statement.startswith('--'):
                     cursor.execute(statement)
             
